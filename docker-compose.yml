@@ -1,0 +1,118 @@
+version: '3.8'
+services:
+  # Database
+  mongodb:
+    image: mongo:5
+    container_name: ecommerce-db
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongodb_data:/data/db
+
+  # 1. Auth Service
+  auth-service:
+    build: ./services/auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      - MONGO_URL=mongodb://admin:password@mongodb:27017/auth?authSource=admin
+      - JWT_SECRET=mysecretkey123
+      - PORT=3001
+    depends_on:
+      - mongodb
+
+  # 2. User Service  
+  user-service:
+    build: ./services/user-service
+    ports:
+      - "3002:3002"
+    environment:
+      - MONGO_URL=mongodb://admin:password@mongodb:27017/users?authSource=admin
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - PORT=3002
+    depends_on:
+      - mongodb
+      - auth-service
+
+  # 3. Product Service
+  product-service:
+    build: ./services/product-service
+    ports:
+      - "3003:3003"
+    environment:
+      - MONGO_URL=mongodb://admin:password@mongodb:27017/products?authSource=admin
+      - PORT=3003
+    depends_on:
+      - mongodb
+
+  # 4. Cart Service
+  cart-service:
+    build: ./services/cart-service
+    ports:
+      - "3004:3004"
+    environment:
+      - MONGO_URL=mongodb://admin:password@mongodb:27017/cart?authSource=admin
+      - PRODUCT_SERVICE_URL=http://product-service:3003
+      - PORT=3004
+    depends_on:
+      - mongodb
+
+  # 5. Order Service
+  order-service:
+    build: ./services/order-service
+    ports:
+      - "3005:3005"
+    environment:
+      - MONGO_URL=mongodb://admin:password@mongodb:27017/orders?authSource=admin
+      - CART_SERVICE_URL=http://cart-service:3004
+      - PAYMENT_SERVICE_URL=http://payment-service:3006
+      - PORT=3005
+    depends_on:
+      - mongodb
+
+  # 6. Payment Service
+  payment-service:
+    build: ./services/payment-service
+    ports:
+      - "3006:3006"
+    environment:
+      - MONGO_URL=mongodb://admin:password@mongodb:27017/payments?authSource=admin
+      - PORT=3006
+    depends_on:
+      - mongodb
+
+  # 7. Notification Service
+  notification-service:
+    build: ./services/notification-service
+    ports:
+      - "3007:3007"
+    environment:
+      - MONGO_URL=mongodb://admin:password@mongodb:27017/notifications?authSource=admin
+      - PORT=3007
+    depends_on:
+      - mongodb
+
+  # 8. Frontend (React)
+  frontend:
+    build: ./services/frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost
+      - REACT_APP_AUTH_URL=http://localhost:3001
+      - REACT_APP_USER_URL=http://localhost:3002
+      - REACT_APP_PRODUCT_URL=http://localhost:3003
+      - REACT_APP_CART_URL=http://localhost:3004
+      - REACT_APP_ORDER_URL=http://localhost:3005
+    depends_on:
+      - auth-service
+      - user-service
+      - product-service
+      - cart-service
+      - order-service
+
+volumes:
+  mongodb_data:
